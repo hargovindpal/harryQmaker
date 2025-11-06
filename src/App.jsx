@@ -1,6 +1,7 @@
 import { Routes, Route, Link } from "react-router-dom";
 import Home from "./pages/Home";
 import Editor from "./pages/Editor";
+import "bootstrap/dist/css/bootstrap.min.css";
 
 function App() {
   return (
