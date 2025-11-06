@@ -9,14 +9,16 @@ function Home() {
       className="d-flex flex-column min-vh-100"
       style={{
         background:
-          "linear-gradient(135deg, #6D28D9 0%, #9333EA 40%, #EC4899 100%)",
+          "linear-gradient(90deg, #6D28D9 0%, #9333EA 30%, #EC4899 100%)",
         color: "#fff",
       }}
     >
       {/* ===== HEADER ===== */}
       <header className="py-3 bg-transparent text-center border-bottom border-white border-opacity-25">
-        <h3 className="fw-bold m-0 text-uppercase letter-spacing-1">
-          🌐 Harry Digital Dose
+        
+        <h3 className="fw-bold m-0 text-uppercase letter-spacing-1 d-flex justify-content-center align-items-center">
+          <img src="./DigitalDose.png" alt="" />
+        Harry Digital Dose
         </h3>
         <p className="text-white-50 small m-0">
           Smart Tools for Smart Educators
