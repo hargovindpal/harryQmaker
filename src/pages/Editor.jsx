@@ -348,14 +348,17 @@ function Editor() {
 
   // ---------- render ----------
   return (
-    <div className="container py-5">
-      <h2 className="fw-bold text-center mb-4">📄 Question Paper Generator</h2>
+    <div className="container py-5" style={{
+        background:
+          "linear-gradient(90deg, transparent 0%, #9333EA 30%, transparent 100%)"
+      }}>
+      <h2 className="fw-bold text-center mb-4 text-white">📄 Question Paper Generator</h2>
 
       <div className="alert alert-info text-center fs-5 fw-bold">🔢 Total Marks: {totalMarks}</div>
 
       {/* Header */}
       <div className="card shadow-lg border-0 rounded-4 p-4 mb-4">
-        <h4 className="fw-bold mb-3 text-white bg-dark p-2 text-center">📝 Paper Header</h4>
+        <h4 className="fw-bold mb-3 text-white bg-dark p-2 text-center rounded-1">📝 Paper Header</h4>
         <div className="row g-3">
           <div className="col-md-4 text-center">
             <input type="file" accept="image/*" className="form-control-file" onChange={handleLogoUpload} />

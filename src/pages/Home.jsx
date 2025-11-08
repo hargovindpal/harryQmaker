@@ -9,16 +9,18 @@ function Home() {
       className="d-flex flex-column min-vh-100"
       style={{
         background:
-          "linear-gradient(90deg, #6D28D9 0%, #9333EA 30%, #EC4899 100%)",
-        color: "#fff",
+          "linear-gradient(90deg, #6D28D9 0%, #9333EA 30%, #EC4899 100%)"
       }}
     >
       {/* ===== HEADER ===== */}
-      <header className="py-3 bg-transparent text-center border-bottom border-white border-opacity-25">
-        
-        <h3 className="fw-bold m-0 text-uppercase letter-spacing-1 d-flex justify-content-center align-items-center">
-          <img src="./DigitalDose.png" alt="" />
-        Harry Digital Dose
+      <header className="py-3 bg-white text-center border-bottom border-white border-opacity-25"
+      style={{
+        background:
+          "linear-gradient(90deg, #6D28D9 0%, #9333EA 30%, #EC4899 100%)"
+      }}>
+        <img src="./DigitalDose.png" alt="" />
+        <h3 className="fw-bold m-0 text-white text-uppercase letter-spacing-1 d-flex justify-content-center align-items-center">
+        Harry's Creation
         </h3>
         <p className="text-white-50 small m-0">
           Smart Tools for Smart Educators
@@ -32,6 +34,9 @@ function Home() {
           style={{
             maxWidth: "700px",
             boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+            background:
+          "linear-gradient(90deg, #290663ff 0%, #9333EA 30%, #800f47ff 100%)"
+
           }}
         >
           <h1 className="fw-bold display-5 mb-3 text-uppercase text-white">
