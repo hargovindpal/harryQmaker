@@ -162,16 +162,28 @@ export async function generateDocx(paper) {
       const group = groups[g];
       const groupNo = g + 1;
 
-      // Compute group total marks (unchanged - shown in header)
+      // ----- new logic: support group-level override (groupTotal / totalMarks / marksTotal)
       let groupMarks = 0;
-      for (let it = 0; it < group.items.length; it++) {
-        const qq = group.items[it].q || {};
-        if (qq.type === "comprehension") {
-          (qq.subQuestions || []).forEach((s) => { groupMarks += parseInt(s.marks || 0, 10) || 0; });
-        } else {
-          groupMarks += parseInt(qq.marks || 0, 10) || 0;
+
+      // look for override on first question object (backwards-compatible)
+      const firstQ = group.items[0]?.q || {};
+      const overrideRaw = firstQ.groupTotal ?? firstQ.totalMarks ?? firstQ.marksTotal;
+      const overrideVal = overrideRaw !== undefined ? parseInt(overrideRaw, 10) : NaN;
+
+      if (!Number.isNaN(overrideVal) && overrideVal > 0) {
+        groupMarks = overrideVal;
+      } else {
+        // fallback: sum per-question marks (including comprehension subquestions)
+        for (let it = 0; it < group.items.length; it++) {
+          const qq = group.items[it].q || {};
+          if (qq.type === "comprehension") {
+            (qq.subQuestions || []).forEach((s) => { groupMarks += parseInt(s.marks || 0, 10) || 0; });
+          } else {
+            groupMarks += parseInt(qq.marks || 0, 10) || 0;
+          }
         }
       }
+      // ----- end group-total logic
 
       const firstInst = group.items[0]?.q?.instruction || (() => {
         switch (group.type) {
@@ -184,7 +196,7 @@ export async function generateDocx(paper) {
         }
       })();
 
-      // Group header: instruction (left) + total marks for the group (right)
+      // Group header: instruction (left) + total marks for the group (right) shown as [X Marks]
       children.push(new Table({
         rows: [new TableRow({
           children: [
@@ -199,7 +211,6 @@ export async function generateDocx(paper) {
               width: { size: 15, type: WidthType.PERCENTAGE },
               borders: borderNone,
               children: [
-                // <-- Changed format here to show [X Marks] instead of (X)
                 new Paragraph({
                   alignment: AlignmentType.RIGHT,
                   children: [tr(groupMarks ? `[${groupMarks} Marks]` : "", { size: 24 })],
@@ -278,7 +289,7 @@ export async function generateDocx(paper) {
           children: [tr(leftText, { size: 26 })],
         });
 
-        // Per-question right cell is intentionally blank (no [X Marks] per question)
+        // Per-question right cell is intentionally blank (no per-question marks)
         const qRightPara = new Paragraph({
           alignment: AlignmentType.RIGHT,
           children: [tr("", { size: 26 })],

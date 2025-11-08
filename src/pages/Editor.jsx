@@ -21,25 +21,57 @@ function Editor() {
 
   const [quickAdd, setQuickAdd] = useState([]);
 
-  // ---------- total marks ----------
+  // ---------- total marks (group-aware) ----------
   const calculateTotalMarks = () => {
     let total = 0;
     const sections = paper.sections || [];
+
     for (let s = 0; s < sections.length; s++) {
       const section = sections[s] || {};
       const qs = section.questions || [];
-      for (let q = 0; q < qs.length; q++) {
-        const question = qs[q] || {};
-        if (question.type === "comprehension") {
-          const subs = question.subQuestions || [];
-          for (let i = 0; i < subs.length; i++) {
-            total += parseInt(subs[i].marks || 0, 10) || 0;
-          }
+
+      // group consecutive types and compute per-group totals (like docx generator)
+      const groups = [];
+      for (let i = 0; i < qs.length; i++) {
+        const q = qs[i] || {};
+        if (i === 0 || q.type !== (qs[i - 1] || {}).type) {
+          groups.push({ startIndex: i, type: q.type || "normal", items: [{ index: i, q }] });
         } else {
-          total += parseInt(question.marks || 0, 10) || 0;
+          groups[groups.length - 1].items.push({ index: i, q });
         }
       }
+
+      for (let gi = 0; gi < groups.length; gi++) {
+        const group = groups[gi];
+        let groupMarks = 0;
+
+        // sum per-question marks first (kept for backward compatibility if data exists)
+        for (let it = 0; it < group.items.length; it++) {
+          const qq = group.items[it].q || {};
+          if (qq.type === "comprehension") {
+            const subs = qq.subQuestions || [];
+            for (let si = 0; si < subs.length; si++) {
+              groupMarks += parseInt(subs[si].marks || 0, 10) || 0;
+            }
+          } else {
+            groupMarks += parseInt(qq.marks || 0, 10) || 0;
+          }
+        }
+
+        // if sum is zero, check first question override keys
+        if (groupMarks === 0) {
+          const firstQ = group.items[0]?.q || {};
+          const overrideRaw = firstQ.groupTotal ?? firstQ.totalMarks ?? firstQ.marksTotal;
+          const overrideVal = overrideRaw !== undefined ? parseInt(overrideRaw, 10) : NaN;
+          if (!Number.isNaN(overrideVal) && overrideVal > 0) {
+            groupMarks = overrideVal;
+          }
+        }
+
+        total += groupMarks;
+      }
     }
+
     return total;
   };
 
@@ -111,7 +143,6 @@ function Editor() {
       case "comprehension":
         return "Read the passage and answer the following:";
       case "normal":
-        // Make sure normal questions get a non-empty default so "Add Instruction" actually creates an editable instruction field
         return "Answer the following:";
       default:
         return "Answer the following:";
@@ -162,9 +193,14 @@ function Editor() {
     });
   };
 
+  // update group total by setting it on the first question of the group
+  const updateGroupTotal = (sectionIndex, firstQuestionIndex, value) => {
+    // store as groupTotal on that first question object
+    updateQuestion(sectionIndex, firstQuestionIndex, "groupTotal", value);
+  };
+
   const addInstruction = (sectionIndex, qIndex) => {
     const t = paper.sections?.[sectionIndex]?.questions?.[qIndex]?.type || "normal";
-    // set a non-empty instruction so the UI switches to the instruction input
     updateQuestion(sectionIndex, qIndex, "instruction", defaultInstruction(t));
   };
 
@@ -339,16 +375,13 @@ function Editor() {
       {/* Sections */}
       <Accordion defaultActiveKey="0">
         {paper.sections.map((section, sIndex) => {
-          const sectionMarks = (section.questions || []).reduce((sum, q) => {
-            if (!q) return sum;
-            if (q.type === "comprehension") return sum + (q.subQuestions || []).reduce((ss, sub) => ss + (parseInt(sub.marks || 0, 10) || 0), 0);
-            return sum + (parseInt(q.marks || 0, 10) || 0);
-          }, 0);
-
-          // Precompute group starts & group numbers for this section's questions
+          // compute section mark using group-aware logic (same as calculateTotalMarks but per-section)
           const qs = section.questions || [];
+
+          // build groups
           const groupStart = [];
           const groupNumber = [];
+          const groups = [];
           let grp = 0;
           let prevType = null;
           for (let i = 0; i < qs.length; i++) {
@@ -356,11 +389,36 @@ function Editor() {
             if (i === 0 || t !== prevType) {
               grp++;
               groupStart[i] = true;
+              groups.push({ startIndex: i, type: t, items: [{ index: i, q: qs[i] }] });
             } else {
               groupStart[i] = false;
+              groups[groups.length - 1].items.push({ index: i, q: qs[i] });
             }
             groupNumber[i] = grp;
             prevType = t;
+          }
+
+          let sectionMarks = 0;
+          for (let gi = 0; gi < groups.length; gi++) {
+            const group = groups[gi];
+            let groupMarks = 0;
+            for (let it = 0; it < group.items.length; it++) {
+              const qq = group.items[it].q || {};
+              if (qq.type === "comprehension") {
+                groupMarks += (qq.subQuestions || []).reduce((ss, sub) => ss + (parseInt(sub.marks || 0, 10) || 0), 0);
+              } else {
+                groupMarks += parseInt(qq.marks || 0, 10) || 0;
+              }
+            }
+            if (groupMarks === 0) {
+              const firstQ = group.items[0]?.q || {};
+              const overrideRaw = firstQ.groupTotal ?? firstQ.totalMarks ?? firstQ.marksTotal;
+              const overrideVal = overrideRaw !== undefined ? parseInt(overrideRaw, 10) : NaN;
+              if (!Number.isNaN(overrideVal) && overrideVal > 0) {
+                groupMarks = overrideVal;
+              }
+            }
+            sectionMarks += groupMarks;
           }
 
           return (
@@ -380,19 +438,42 @@ function Editor() {
                 {qs.map((q, qIndex) => {
                   const isGroupStart = !!groupStart[qIndex];
                   const gNum = groupNumber[qIndex] || 0;
+
+                  // when group starts, the first question index for that group is qIndex
+                  const firstQuestionIndex = qIndex;
+
                   return (
                     <div key={qIndex} className="question-card mb-3 p-3 border rounded">
                       {/* If this question is the first of a consecutive-type group, show group heading */}
                       {isGroupStart && (
-                        <div className="group-heading mb-2">
-                          <strong>Q-{gNum}</strong>
+                        <div className="group-heading mb-2 d-flex align-items-center justify-content-between">
+                          <div>
+                            <strong>Q-{gNum}</strong>
+                          </div>
+
+                          {/* Group total input (stores on first question as groupTotal) */}
+                          <div className="d-flex align-items-center gap-2">
+                            <label className="small text-muted mb-0">Group Total</label>
+                            <input
+                              type="number"
+                              min="0"
+                              className="form-control form-control-sm"
+                              style={{ width: 110 }}
+                              placeholder="Total Marks"
+                              value={
+                                // prefer explicit groupTotal field on this first question; fall back to empty string
+                                (qs[firstQuestionIndex]?.groupTotal ?? qs[firstQuestionIndex]?.totalMarks ?? qs[firstQuestionIndex]?.marksTotal) || ""
+                              }
+                              onChange={(e) => updateGroupTotal(sIndex, firstQuestionIndex, e.target.value)}
+                            />
+                          </div>
                         </div>
                       )}
 
                       <div className="d-flex justify-content-between align-items-start mb-2">
                         <div className="q-label">
                           <strong>Q{qIndex + 1}</strong>
-                          {q.marks ? <span className="ms-2 mark-badge">[{q.marks} Marks]</span> : null}
+                          {/* per-question mark badge removed — only group totals are used */}
                         </div>
                         <div>
                           <Button variant="outline-danger" size="sm" onClick={() => deleteQuestion(sIndex, qIndex)}>🗑</Button>
@@ -419,12 +500,7 @@ function Editor() {
                         </>
                       )}
 
-                      {q.type !== "comprehension" && (
-                        <>
-                          <label className="small text-muted">Marks</label>
-                          <input type="number" className="form-control my-2" placeholder="Marks" value={q.marks || ""} onChange={(e) => updateQuestion(sIndex, qIndex, "marks", e.target.value)} />
-                        </>
-                      )}
+                      {/* per-question marks input removed — use group total instead */}
 
                       {/* Objective */}
                       {q.type === "objective" && (
@@ -454,6 +530,7 @@ function Editor() {
                       {/* Matching */}
                       {q.type === "matching" && (
                         <>
+
                           <div className="mb-2 fw-semibold">Pairs (Left — Right)</div>
                           {(q.columnA || []).map((left, i) => (
                             <div key={i} className="pair-row d-flex gap-2 mb-2 align-items-center">
@@ -476,7 +553,7 @@ function Editor() {
                           {(q.subQuestions || []).map((subQ, subIndex) => (
                             <div key={subIndex} className="d-flex gap-2 my-1">
                               <input type="text" className="form-control" placeholder={`Sub-question ${subIndex + 1}`} value={subQ.text || ""} onChange={(e) => updateSubQuestion(sIndex, qIndex, subIndex, "text", e.target.value)} />
-                              <input type="number" className="form-control" placeholder="Marks" value={subQ.marks || ""} onChange={(e) => updateSubQuestion(sIndex, qIndex, subIndex, "marks", e.target.value)} />
+                              {/* per-subquestion marks input removed — group total will be used */}
                               <Button variant="outline-danger" size="sm" onClick={() => deleteSubQuestion(sIndex, qIndex, subIndex)}>🗑</Button>
                             </div>
                           ))}
